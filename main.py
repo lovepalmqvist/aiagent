@@ -7,6 +7,7 @@ from functions.get_files_info import schema_get_files_info
 from functions.get_file_content import schema_get_file_content
 from functions.run_python_file import schema_run_python_file
 from functions.write_file import schema_write_file
+from functions.call_function import call_function
 
 load_dotenv()
 api_key = os.environ.get("GEMINI_API_KEY")
@@ -29,6 +30,8 @@ def main():
     if len(sys.argv) <= 1:
         print("Please provide a prompt.")
         sys.exit(1)
+
+    verbose = len(sys.argv) == 3 and sys.argv[2] == "--verbose"
 
     user_prompt = sys.argv[1]
     messages = [
@@ -54,7 +57,17 @@ def main():
         for part in candidate.content.parts:
             if hasattr(part, "function_call") and part.function_call is not None:
                 function_call_part = part.function_call
-                print(f"Calling function: {function_call_part.name}({function_call_part.args})")
+                function_call_result = call_function(function_call_part, verbose)
+                if (
+                    not function_call_result.parts
+                    or not hasattr(function_call_result.parts[0], "function_response")
+                    or not hasattr(function_call_result.parts[0].function_response, "response")
+                ):
+                    raise RuntimeError("Fatal: Missing function_response in call_function result.")
+
+                # If verbose, print the function result
+                if verbose:
+                    print(f"-> {function_call_result.parts[0].function_response.response}")
             else:
                 print(response.text)
         
